@@ -6,7 +6,7 @@ namespace IEEE754StorageStringParser
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("Hello World!");
+            
         }
     }
 }

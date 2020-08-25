@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+using System.Buffers;
 using System;
 
 namespace IEEE754StorageStringParser
@@ -8,7 +10,7 @@ namespace IEEE754StorageStringParser
         Ten = 10,
     }
 
-    public class FloatingPointFormat
+    public unsafe class FloatingPointFormat
     {
         public readonly Radix Radix;
         public readonly int ByteSize, BitSize;
@@ -80,7 +82,7 @@ namespace IEEE754StorageStringParser
                     // (1 << (count + offset))- 1;
                     OneLeftShfitByNMinusOne(storage, bitCount + bitOffset);
                 }
-                else //if (bitOffset >= 0)
+                else //if (offset >= 0)
                 {
                     // 0xFF... << offset
                     FillMax(storage);
@@ -145,6 +147,11 @@ namespace IEEE754StorageStringParser
         {
             for(int i = 0; i < storage.Length; i++)
                 storage[i] = 0xFF;
+        }
+
+        private ushort* MarshalSpan2(in Span<byte> storage)
+        {
+            return &MemoryMarshal.GetReference(storage);
         }
 
         public static readonly FloatingPointFormat Binary16 =   new FloatingPointFormat(Radix.Two, 16,  15,  1, 10,  5,  0, 10 , "Half");

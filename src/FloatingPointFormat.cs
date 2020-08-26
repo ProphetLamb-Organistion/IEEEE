@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Buffers;
 using System;
+using System.Runtime.CompilerServices;
 
 namespace IEEE754StorageStringParser
 {
@@ -111,47 +112,108 @@ namespace IEEE754StorageStringParser
         }
 
         /// <summary>
-        /// Does: storage = storage << n for byte arrays.
+        /// Performs following integer arithmetic operation on byte arrays: storage = storage << n.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void LeftShift(in Span<byte> storage, int n)
         {
             if (n < 0)
                 throw new ArgumentOutOfRangeException(nameof(n));
-            byte carryMask = 0x00;
-            for (int i = 0; i < storage.Length; i++)
+            fixed(byte* storagePtr = &MemoryMarshal.GetReference(storage))
             {
-                // Shift and apply carry bit
-                byte temp = (byte)(((storage[i] << 1) | carryMask) & 0xFF);
-                // Carry HI bit to next LO
-                carryMask = (byte)((storage[i] >> 8) & 0xFF);
-                storage[i] = temp;
+                switch (storage.Length)
+                {
+                    case 1:
+                        *storagePtr <<= 1;
+                        break;
+                    case 2:
+                        *(ushort*)storagePtr <<= 1;
+                        break;
+                    case 4:
+                        *(uint*)storagePtr <<= 1;
+                        break;
+                    case 8:
+                        *(ulong*)storagePtr <<= 1;
+                        break;
+                    default:
+                        byte carryMask = 0x00;
+                        for (int i = 0; i < storage.Length; i++)
+                        {
+                            // Shift and apply carry bit
+                            byte temp = (byte)(((storagePtr[i] << 1) | carryMask) & 0xFF);
+                            // Carry HI bit to next LO
+                            carryMask = (byte)((storagePtr[i] >> 7) & 0xFF);
+                            storagePtr[i] = temp;
+                        }
+                        break;
+                }
             }
         }
 
         /// <summary>
-        /// Does: (1 << n) - 1 for byte arrays.
+        /// Performs following integer arithmetic operation on byte arrays: (1 << n) - 1.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void OneLeftShfitByNMinusOne(in Span<byte> storage, int n)
         {
             if (n < 0)
                 throw new ArgumentOutOfRangeException(nameof(n));
-            int bytes = n / 8,
-                remainder = n % 8;
-            for (int i = 0; i < bytes; i++)
-                storage[i] = 0xFF;
-            if (remainder != 0)
-                storage[bytes + 1] = (byte)((1 << remainder) - 1);
+            fixed(byte* storagePtr = &MemoryMarshal.GetReference(storage))
+            {
+                switch (storage.Length)
+                {
+                    case 1:
+                        *storagePtr = (byte)(((1 << n) - 1) & 0xFF);
+                        break;
+                    case 2:
+                        *(ushort*)storagePtr = (ushort)(((1 << n) - 1) & 0xFFFF);
+                        break;
+                    case 4:
+                        *(uint*)storagePtr = ((1u << n) - 1) & 0xFFFFFFFF;
+                        break;
+                    case 8:
+                        *(ulong*)storagePtr = ((1ul << n) - 1) & 0xFFFFFFFFFFFFFFFF;
+                        break;
+                    default:
+                        int bytes = n / 8,
+                            remainder = n % 8;
+                        for (int i = 0; i < bytes; i++)
+                            storagePtr[i] = 0xFF;
+                        if (remainder != 0)
+                            storagePtr[bytes + 1] = (byte)((1 << remainder) - 1);
+                        break;
+                }
+            }
         }
-
+        /// <summary>
+        /// Sets all bytes to 0xFF.
+        /// </summary>
+        /// <param name="storage"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void FillMax(in Span<byte> storage)
         {
-            for(int i = 0; i < storage.Length; i++)
-                storage[i] = 0xFF;
-        }
-
-        private ushort* MarshalSpan2(in Span<byte> storage)
-        {
-            return &MemoryMarshal.GetReference(storage);
+            fixed(byte* storagePtr = &MemoryMarshal.GetReference(storage))
+            {
+                switch (storage.Length)
+                {
+                    case 1:
+                        *storagePtr = 0xFF;
+                        break;
+                    case 2:
+                        *(ushort*)storagePtr = 0xFFFF;
+                        break;
+                    case 4:
+                        *(uint*)storagePtr = 0xFFFFFFFF;
+                        break;
+                    case 8:
+                        *(ulong*)storagePtr = 0xFFFFFFFFFFFFFFFF;
+                        break;
+                    default:
+                        for(int i = 0; i < storage.Length; i++)
+                            storagePtr[i] = 0xFF;
+                    break;
+                }
+            }
         }
 
         public static readonly FloatingPointFormat Binary16 =   new FloatingPointFormat(Radix.Two, 16,  15,  1, 10,  5,  0, 10 , "Half");
